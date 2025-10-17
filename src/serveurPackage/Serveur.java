@@ -2,6 +2,7 @@ package serveurPackage;
 
 import java.io.*;
 import java.net.*;
+import objetPackage.Operation;
 
 public class Serveur {
     public static void main(String[] args) {
@@ -12,90 +13,81 @@ public class Serveur {
             Socket socket = serverSocket.accept();
             System.out.println("Un client est connecté.");
 
-            InputStream is = socket.getInputStream();
-            OutputStream os = socket.getOutputStream();
+            ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+            ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
 
-            BufferedReader in = new BufferedReader(new InputStreamReader(is));
-            PrintWriter out = new PrintWriter(os, true);
+            // Lecture de l’objet Operation
+            Operation op = (Operation) in.readObject();
+            System.out.println("Objet Operation reçu : " + op);
 
-            String message = in.readLine();
-            System.out.println("Opération reçue : " + message);
+            String op1Str = op.getOperande1();
+            String operateur = op.getOperateur();
+            String op2Str = op.getOperande2();
 
-            String[] parties = message.trim().split(" ");
+            String reponse;
 
-            if (parties.length != 3) {
-                out.println("Erreur : format invalide. Utilisez : nombre1 opérateur nombre2");
-                System.out.println("Format invalide reçu !");
-                socket.close();
-                serverSocket.close();
-                return;
-            }
-
-            String op1Str = parties[0];
-            String operateur = parties[1];
-            String op2Str = parties[2];
-
-            if (!estNombre(op1Str) || !estNombre(op2Str)) {
-                out.println("Erreur : les opérandes doivent être des nombres !");
+            // Vérification des opérandes
+            if (!estNumerique(op1Str) || !estNumerique(op2Str)) {
+                reponse = "Erreur : les opérandes doivent être des nombres !";
                 System.out.println("Erreur : opérande invalide.");
-                socket.close();
-                serverSocket.close();
-                return;
             }
-
-            float op1 = Float.parseFloat(op1Str);
-            float op2 = Float.parseFloat(op2Str);
-            float resultat = 0;
-            String err = "";
-
-            if (!(operateur.equals("+") || operateur.equals("-") ||
+            // Vérification de l’opérateur
+            else if (!(operateur.equals("+") || operateur.equals("-") ||
                     operateur.equals("*") || operateur.equals("/"))) {
-                out.println("Erreur : opérateur invalide !");
+                reponse = "Erreur : opérateur invalide !";
                 System.out.println("Erreur : opérateur invalide reçu !");
-                socket.close();
-                serverSocket.close();
-                return;
+            }
+            else {
+                float op1 = Float.parseFloat(op1Str);
+                float op2 = Float.parseFloat(op2Str);
+                float resultat = 0;
+                String err = "";
+
+                switch (operateur) {
+                    case "+":
+                        resultat = op1 + op2;
+                        break;
+                    case "-":
+                        resultat = op1 - op2;
+                        break;
+                    case "*":
+                        resultat = op1 * op2;
+                        break;
+                    case "/":
+                        if (op2 == 0) {
+                            err = "Erreur : division par zéro impossible.";
+                        } else {
+                            resultat = op1 / op2;
+                        }
+                        break;
+                }
+
+                if (err.equals("")) {
+                    reponse = "Résultat : " + resultat;
+                    System.out.println("Résultat envoyé au client : " + resultat);
+                } else {
+                    reponse = err;
+                    System.out.println(err);
+                }
             }
 
-            switch (operateur) {
-                case "+":
-                    resultat = op1 + op2;
-                    break;
-                case "-":
-                    resultat = op1 - op2;
-                    break;
-                case "*":
-                    resultat = op1 * op2;
-                    break;
-                case "/":
-                    if (op2 == 0) {
-                        err = "Erreur : division par zéro impossible.";
-                    } else {
-                        resultat = op1 / op2;
-                    }
-                    break;
-            }
+            // Envoi du résultat
+            out.writeObject(reponse);
 
-            if (err.equals("")) {
-                out.println("Résultat : " + resultat);
-                System.out.println("Résultat envoyé au client : " + resultat);
-            } else {
-                out.println(err);
-                System.out.println(err);
-            }
-
+            // Fermeture
             in.close();
             out.close();
             socket.close();
             serverSocket.close();
             System.out.println("Connexion fermée côté serveur.");
 
-        } catch (IOException e) {
+        } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
         }
     }
 
-    public static boolean estNombre(String s) {
+    // --- Vérifie si une chaîne est un nombre valide (entier ou flottant) ---
+    public static boolean estNumerique(String s) {
         try {
             Float.parseFloat(s);
             return true;
